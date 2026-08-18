@@ -6,14 +6,20 @@ import { geocodeAddress } from '../services/geocodingService.js';
 // @access  Private (Requester / Admin)
 export const getHospitals = async (req, res) => {
     try {
-        const hospitals = await Hospital.find({})
+        const hospitals = await Hospital.find({
+            verificationStatus: 'VERIFIED'
+        })
             .select('name city postalCode location isExactLocation')
             .sort({ name: 1 });
-            
+
+        console.log(`Found ${hospitals.length} verified hospitals`);
+
         res.json(hospitals);
     } catch (error) {
         console.error('Error fetching hospitals:', error);
-        res.status(500).json({ message: 'Server error fetching hospitals' });
+        res.status(500).json({
+            message: 'Server error fetching hospitals'
+        });
     }
 };
 
