@@ -1,46 +1,59 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import Hospital from './models/Hospital.js';
+import User from './models/User.js';
 
 dotenv.config();
 
-const migrateHospitals = async () => {
+const seedHospital = async () => {
     try {
         await mongoose.connect(process.env.MONGO_URI);
         console.log('Connected to MongoDB');
 
-        const hospitals = await Hospital.find({ isVerified: { $exists: true } });
-        console.log(`Found ${hospitals.length} hospitals with legacy isVerified field.`);
+        // Find an existing ADMIN user
+        const admin = await User.findOne({ role: 'ADMIN' });
 
-        for (const hospital of hospitals) {
-            // Because mongoose schema no longer has isVerified, we might need to access it via _doc or strict: false
-            // Actually, we can just use mongoose updateMany to bypass schema strictness
+        if (!admin) {
+            console.log('No ADMIN user found.');
+            console.log('Please create an ADMIN account first.');
+            process.exit(1);
         }
 
-        const resultVerified = await mongoose.connection.collection('hospitals').updateMany(
-            { isVerified: true },
-            { $set: { verificationStatus: 'VERIFIED' }, $unset: { isVerified: "" } }
-        );
-        console.log(`Migrated ${resultVerified.modifiedCount} verified hospitals.`);
+        // Check if hospital already exists
+        const existingHospital = await Hospital.findOne({
+            name: 'NIT Jalandhar Hospital'
+        });
 
-        const resultUnverified = await mongoose.connection.collection('hospitals').updateMany(
-            { isVerified: false },
-            { $set: { verificationStatus: 'PENDING' }, $unset: { isVerified: "" } }
-        );
-        console.log(`Migrated ${resultUnverified.modifiedCount} unverified/pending hospitals.`);
+        if (existingHospital) {
+            console.log('Hospital already exists.');
+            console.log(existingHospital);
+            process.exit(0);
+        }
 
-        const resultOthers = await mongoose.connection.collection('hospitals').updateMany(
-            { isVerified: { $exists: true } },
-            { $set: { verificationStatus: 'PENDING' }, $unset: { isVerified: "" } }
-        );
-        console.log(`Cleaned up ${resultOthers.modifiedCount} other legacy records.`);
+        // Create verified hospital
+        const hospital = await Hospital.create({
+            adminId: admin._id,
+            name: 'NIT Jalandhar Hospital',
+            contactNumber: '0181-2690301',
+            city: 'Jalandhar',
+            postalCode: '144011',
+            location: {
+                type: 'Point',
+                coordinates: [75.6547, 31.3969]
+            },
+            isExactLocation: false,
+            verificationStatus: 'VERIFIED'
+        });
 
-        console.log('Migration complete.');
+        console.log('Hospital created successfully!');
+        console.log(hospital);
+
         process.exit(0);
+
     } catch (error) {
-        console.error('Migration failed:', error);
+        console.error('Failed to create hospital:', error);
         process.exit(1);
     }
 };
 
-migrateHospitals();
+seedHospital();
